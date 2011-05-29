@@ -6,27 +6,28 @@
 #include <string>
 #include <cstdio>
 #include <cstdlib>
+#include "ColorSetting.h"
 
 using namespace std;	//Stringって実はstd::stringって呼び出してたんですねー
 using namespace cv;
 
 char* srcMov = "../../inputfile.avi";
-const char* cascadeName = "../../haarcascade_frontalface_alt.xml";
-String nestedCascadeName = "../../haarcascade_eye_tree_eyeglasses.xml";
+char saveUrl[256];
 
-void detectAndDraw( IplImage* img, CvHaarClassifierCascade* cascade,
-				   CvHaarClassifierCascade* nestedCascade, double scale);
+struct colors {
+	uchar r;
+	uchar g;
+	uchar b;
+};
 
 int main (int argc, char * const argv[]) {
-	IplImage* imgFrm;
+	IplImage *imgFrm, *imgGray, *imgResize;
 	Mat frame, frameCopy, image;
+	struct colors imgColor={0,0,0};
+	ColorSetting colSet;	//引数無しのコンストラクタは()無しで呼出すんですってよ
     CvCapture* capture = 0;
+	int x=0, y=0, i=0;
 	capture = cvCaptureFromFile(srcMov);
-	CvHaarClassifierCascade *cascade, *nestedcascade;
-	double scale = 1;
-	/*if (!cascade.load(cascadeName)) {
-		printf("can't load cascade");
-	}*/
 	if (capture == NULL) {
 		printf("%s is can't load", srcMov);
 		exit(0);
@@ -39,43 +40,36 @@ int main (int argc, char * const argv[]) {
 			printf("can't get frame");
 			break;
 		}
-		detectAndDraw(imgFrm, cascade, nestedcascade, scale);
-		cvShowImage("window", imgFrm);
+		imgGray = cvCreateImage(cvGetSize(imgFrm), IPL_DEPTH_8U, 1);
+		for (y=0; y < imgFrm->height; y++) {
+			for (x=0; x<imgFrm->width; x++) {
+				imgColor.r = colSet.GetColorR(imgFrm, x, y);
+				imgColor.g = colSet.GetColorG(imgFrm, x, y);
+				imgColor.b = colSet.GetColorB(imgFrm, x, y);
+				if (imgColor.r >imgColor.g *1.1 &&
+					imgColor.g>imgColor.b *1.1 )
+					cvSetReal2D(imgGray, y, x, 255);
+				else
+					cvSetReal2D(imgGray, y, x, 0);
+			}
+		}
+		imgResize = cvCreateImage(cvSize(imgFrm->width/2, imgFrm->height/2), 8, 1);
+		cvResize(imgGray, imgResize, CV_INTER_CUBIC);
+		sprintf(saveUrl, "../../captures/saveImage%d.jpg",i);
+		printf("%s",saveUrl);
+		cvSaveImage(saveUrl, imgGray);
+		cvShowImage("window", imgResize);
 		key = (char)cvWaitKey(41);
 		if(key == '\033'){
 			exit(0);
 		}
+		i++;
 	}
 	cvWaitKey(0);
 	cvReleaseCapture(& capture);
 	cvDestroyWindow("window");
+	cvReleaseCapture(&capture);
+	cvReleaseImage(&imgFrm);
+	cvReleaseImage(&imgGray);
     return 0;
-}
-
-void detectAndDraw( IplImage* img, CvHaarClassifierCascade* cascade,
-				   CvHaarClassifierCascade* nestedCascade, double scale){
-	int i=0;
-	CvSeq *faces;
-	CvMemStorage *storage = 0;
-	const static Scalar colors[] = { CV_RGB(0, 0, 255),
-		CV_RGB( 0, 128, 255), CV_RGB( 0, 255, 255),
-		CV_RGB(0, 255, 0), CV_RGB( 255, 128, 0),
-		CV_RGB( 255, 255, 0), CV_RGB( 255, 0, 0), CV_RGB( 255, 0, 255)};
-	IplImage* grayImg;
-	grayImg = cvCreateImage(cvGetSize(img), IPL_DEPTH_8U, 1);
-	cascade = (CvHaarClassifierCascade *)cvLoad(cascadeName, 0, 0, 0);
-	storage = cvCreateMemStorage(0);	//メモリ確保
-	cvClearMemStorage(storage);
-	cvCvtColor(img, grayImg,CV_BGR2GRAY);	//グレースケール化
-	cvEqualizeHist(grayImg,grayImg);	//ヒストグラム均一化
-	faces = cvHaarDetectObjects(grayImg, cascade, storage, 1.1, 4, 0, cvSize(30,30));
-	for (i=0; i<(faces ? faces -> total : 0); i++) {
-		CvRect *r = (CvRect *)cvGetSeqElem(faces, i);
-		CvPoint center;
-		int radius;
-		center.x = cvRound(r->x + r->width * 0.5);
-		center.y = cvRound(r->y + r->height * 0.5);
-		radius = cvRound((r->width + r->height) * 0.25);
-		cvCircle(img, center, radius, colors[i % 8], 3, 8, 0);
-	}
 }
