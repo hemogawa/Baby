@@ -11,6 +11,7 @@
 #include "cxcore.h"
 #include "highgui.h"
 #include "cvaux.h"
+#include "Labeling.h"
 
 using namespace std;
 

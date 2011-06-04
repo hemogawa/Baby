@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include "ColorSetting.h"
+#include "Labeling.h"
 
 using namespace std;	//Stringって実はstd::stringって呼び出してたんですねー
 using namespace cv;
@@ -21,12 +22,18 @@ struct colors {
 };
 
 int main (int argc, char * const argv[]) {
-	IplImage *imgFrm, *imgGray, *imgResize;
+	IplImage *imgFrm, *imgGray, *imgResize, *imgTmp;
+	short *dstLabel;
 	Mat frame, frameCopy, image;
 	struct colors imgColor={0,0,0};
 	ColorSetting colSet;	//引数無しのコンストラクタは()無しで呼出すんですってよ
     CvCapture* capture = 0;
-	int x=0, y=0, i=0;
+	int x=0, y=0, i=0, j=0;
+	float size_x, size_y;
+	CvPoint center;
+	LabelingBS labeling;
+	RegionInfoBS *ri;
+	
 	capture = cvCaptureFromFile(srcMov);
 	if (capture == NULL) {
 		printf("%s is can't load", srcMov);
@@ -55,9 +62,22 @@ int main (int argc, char * const argv[]) {
 		}
 		imgResize = cvCreateImage(cvSize(imgFrm->width/2, imgFrm->height/2), 8, 1);
 		cvResize(imgGray, imgResize, CV_INTER_CUBIC);
-		sprintf(saveUrl, "../../captures/saveImage%d.jpg",i);
+		imgTmp = cvCreateImage(cvGetSize(imgResize), IPL_DEPTH_8U, 1);
+		cvDilate(imgResize, imgTmp, NULL, 8);
+		cvErode(imgTmp, imgResize, NULL, 8);
+		dstLabel = new short[imgResize->width * imgResize->height];
+		labeling.Exec((uchar*)imgResize->imageData, dstLabel, imgResize->width, imgResize->height, true, 300);
+		int n = labeling.GetNumOfRegions();
+		for (j=0;j<5;j++){
+			ri = labeling.GetResultRegionInfo(j);
+			//ri->GetCenter( (float &)center.x, (float &)center.y);
+			ri->GetCenter( size_x, size_y);
+			cvCircle(imgResize, cvPoint(size_x, size_y), 5, CV_RGB(100,100,100), 3, 8, 0);
+		}
+		printf("labels:%d",n);
+		sprintf(saveUrl, "../../captures/saveLavel%d.jpg",i);
 		printf("%s",saveUrl);
-		cvSaveImage(saveUrl, imgGray);
+		cvSaveImage(saveUrl, imgResize);
 		cvShowImage("window", imgResize);
 		key = (char)cvWaitKey(41);
 		if(key == '\033'){
