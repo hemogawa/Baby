@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include "ColorSetting.h"
 #include "Labeling.h"
+#include <math.h>
 
 using namespace std;	//Stringって実はstd::stringって呼び出してたんですねー
 using namespace cv;
@@ -28,9 +29,10 @@ int main (int argc, char * const argv[]) {
 	struct colors imgColor={0,0,0};
 	ColorSetting colSet;	//引数無しのコンストラクタは()無しで呼出すんですってよ
     CvCapture* capture = 0;
-	int x=0, y=0, i=0, j=0;
+	CvPoint prePoint[5]={{0,0}}, fhlPoint[5] = {0,0}, crtPoint[5] = {0,0};
+	int x=0, y=0, i=0, j=0, k=0;
+	double minDist, crtDist;
 	float size_x, size_y;
-	CvPoint center;
 	LabelingBS labeling;
 	RegionInfoBS *ri;
 	
@@ -67,16 +69,61 @@ int main (int argc, char * const argv[]) {
 		cvErode(imgTmp, imgResize, NULL, 8);
 		dstLabel = new short[imgResize->width * imgResize->height];
 		labeling.Exec((uchar*)imgResize->imageData, dstLabel, imgResize->width, imgResize->height, true, 300);
-		int n = labeling.GetNumOfRegions();
 		for (j=0;j<5;j++){
 			ri = labeling.GetResultRegionInfo(j);
-			//ri->GetCenter( (float &)center.x, (float &)center.y);
 			ri->GetCenter( size_x, size_y);
-			cvCircle(imgResize, cvPoint(size_x, size_y), 5, CV_RGB(100,100,100), 3, 8, 0);
+			crtPoint[j].x = size_x; crtPoint[j].y = size_y;
 		}
-		printf("labels:%d",n);
+		for(j=0;j<5;j++){
+			//1ばん最初のポイントを設定
+			if (prePoint[j].x == 0 && prePoint[j].y == 0) {
+				fhlPoint[j] = crtPoint[j];
+			}
+			else{
+				for(k=0;k<5;k++){					
+					crtDist = hypot(prePoint[j].x - crtPoint[k].x, prePoint[j].y - crtPoint[k].y);
+					if (k==0) {
+						minDist = crtDist;
+						fhlPoint[j] = crtPoint[k];
+					}else if (minDist > crtDist) {
+						minDist = crtDist;
+						fhlPoint[j] = crtPoint[k];
+					}
+				}
+				if (minDist > 100) {
+					fhlPoint[j] = prePoint[j];
+				}
+			}
+			printf("%d:(%d,%d)",j,fhlPoint[j].x, fhlPoint[j].y);
+			if (j==4)
+				printf("\n");
+			cvCircle(imgResize, fhlPoint[j], 5, CV_RGB(j*60,j*60,j*60), 3, 8, 0);
+			prePoint[j] = fhlPoint[j];
+		}
+			/*else {
+				// 前回からの距離が一番近い点をfhlPointとして記録
+				for (k=0; k<5; k++) {
+					crtDist = hypot(prePoint[k].x - size_x, prePoint[k].y - size_y);
+					if (k == 0) {
+						minDist = crtDist;
+						fhlPoint[k].x = size_x; fhlPoint[k].y = size_y;
+					} else if (minDist > crtDist) {
+						minDist = crtDist;
+						fhlPoint[k].x = size_x; fhlPoint[k].y = size_y;
+					}
+					printf("min:%3.0f (%d,%d)\t", minDist, fhlPoint[k].x, fhlPoint[k].y);
+					if (k == 4) {
+						printf("\n");
+					}
+				}
+			}
+			cvCircle(imgResize, fhlPoint[j], 5, CV_RGB(j*60,j*60,j*60), 3, 8, 0);
+			prePoint[j].x = fhlPoint[j].x; prePoint[j].y = fhlPoint[j].y;
+			printf("%d:(%d,%d)\n",j,fhlPoint[j].x, fhlPoint[j].y);
+			if(j == 4)
+				printf("\n");
+			 */
 		sprintf(saveUrl, "../../captures/saveLavel%d.jpg",i);
-		printf("%s",saveUrl);
 		cvSaveImage(saveUrl, imgResize);
 		cvShowImage("window", imgResize);
 		key = (char)cvWaitKey(41);
